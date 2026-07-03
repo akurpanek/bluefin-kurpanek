@@ -29,7 +29,7 @@ echo "======================================================================="
 
 # Find all matching scripts, sort them numerically/alphabetically, and loop
 # Using find + sort to safely handle potential empty directories or spaces
-while rsync_loop= read -r script; do
+while rsync_loop='' read -r script; do
     # Skip if no matching files were found (glob expansion safety)
     [[ -e "$script" ]] || continue
     
