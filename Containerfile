@@ -62,6 +62,13 @@ ARG BASE_IMAGE_NAME="silverblue"
 ARG FEDORA_MAJOR_VERSION="44"
 ARG VERSION=""
 
+### /opt
+## Makes /opt writeable by default. Needs to be here to make the main image
+## build strict (no /opt there). This is for downstream images/stuff like k0s.
+## If you need /opt as an immutable real directory for build-time packages
+## (e.g. google-chrome, docker-desktop), replace the next line with:
+RUN rm -rf /opt && mkdir /opt
+
 ### MODIFICATIONS
 ## Make modifications desired in your image and install packages by modifying the build scripts.
 ## The following RUN directives mount the ctx stage which includes:
@@ -87,6 +94,14 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build/10-build.sh
 
+RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=cache,dst=/var/cache/libdnf5 \
+    --mount=type=cache,dst=/var/cache/rpm-ostree \
+    --mount=type=secret,id=GITHUB_TOKEN \
+    --mount=type=tmpfs,dst=/boot \
+    --mount=type=tmpfs,dst=/tmp \
+    /ctx/build/20-onepassword.sh
+
 ### CLEANUP
 ## Use Bluefin's clean-stage.sh to remove build artifacts before linting.
 ## /run is deliberately not mounted as tmpfs here: clean-stage.sh must remove
@@ -97,13 +112,11 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/boot \
     /ctx/build/clean-stage.sh
 
-### /opt
-## Makes /opt writeable by default. Needs to be here to make the main image
-## build strict (no /opt there). This is for downstream images/stuff like k0s.
-## If you need /opt as an immutable real directory for build-time packages
-## (e.g. google-chrome, docker-desktop), replace the next line with:
-##   RUN rm /opt && mkdir /opt
-RUN rm -rf /opt && ln -s /var/opt /opt
+### /opt symlink restoration
+## IMPORTANT: Restores the system state expected by Bluefin/Finpilot.
+## Moves the installed 1Password data to /var/opt and recreates 
+## /opt as a symlink for the final, running image.
+RUN cp -a /opt/. /var/opt/ && rm -rf /opt && ln -s /var/opt /opt
 
 ### INIT
 ## Required for bootc images
