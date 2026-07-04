@@ -107,6 +107,24 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
 ## /opt as a symlink for the final, running image.
 RUN cp -a /opt/. /var/opt/ && rm -rf /opt && ln -s /var/opt /opt
 
+### Fix bootc linting issues for 1Password groups (sysusers)
+## Extracts newly created groups and registers them properly for systemd-sysusers
+RUN if grep -E '^onepassword' /etc/group > /dev/null; then \
+        echo "g onepassword - -" > /usr/lib/sysusers.d/onepassword.conf && \
+        echo "g onepassword-mcp - -" >> /usr/lib/sysusers.d/onepassword.conf; \
+    fi
+
+### Fix bootc linting issues for /var content (tmpfiles.d)
+## bootc images cannot contain static files in /var. We move /var/opt to 
+## /usr/lib/opt and use systemd-tmpfiles to create the symlink at runtime.
+RUN if [ -d /var/opt ]; then \
+        mkdir -p /usr/lib/opt && \
+        cp -a /var/opt/. /usr/lib/opt/ && \
+        rm -rf /var/opt && \
+        mkdir -p /usr/lib/tmpfiles.d && \
+        echo "L+ /var/opt - - - - /usr/lib/opt" > /usr/lib/tmpfiles.d/custom-opt.conf; \
+    fi
+    
 ### INIT
 ## Required for bootc images
 CMD ["/sbin/init"]
