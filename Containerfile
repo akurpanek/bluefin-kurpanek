@@ -103,7 +103,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
 
 ### /opt symlink restoration
 ## IMPORTANT: Restores the system state expected by Bluefin/Finpilot.
-## Moves the installed 1Password data to /var/opt and recreates 
+## Moves the installed 1Password data to /var/opt and recreates
 ## /opt as a symlink for the final, running image.
 RUN cp -a /opt/. /var/opt/ && rm -rf /opt && ln -s /var/opt /opt
 
