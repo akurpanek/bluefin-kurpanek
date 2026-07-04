@@ -32,13 +32,13 @@ echo "======================================================================="
 while rsync_loop='' read -r script; do
     # Skip if no matching files were found (glob expansion safety)
     [[ -e "$script" ]] || continue
-    
+
     script_name=$(basename "$script")
-    
+
     echo "-----------------------------------------------------------------------"
     echo "Running build stage: $script_name"
     echo "-----------------------------------------------------------------------"
-    
+
     # Ensure the script is actually executable before running it
     if [ -x "$script" ]; then
         "$script"
