@@ -115,7 +115,7 @@ RUN if grep -E '^onepassword' /etc/group > /dev/null; then \
     fi
 
 ### Fix bootc linting issues for /var content (tmpfiles.d)
-## bootc images cannot contain static files in /var. We move /var/opt to 
+## bootc images cannot contain static files in /var. We move /var/opt to
 ## /usr/lib/opt and use systemd-tmpfiles to create the symlink at runtime.
 RUN if [ -d /var/opt ]; then \
         mkdir -p /usr/lib/opt && \
@@ -124,7 +124,7 @@ RUN if [ -d /var/opt ]; then \
         mkdir -p /usr/lib/tmpfiles.d && \
         echo "L+ /var/opt - - - - /usr/lib/opt" > /usr/lib/tmpfiles.d/custom-opt.conf; \
     fi
-    
+
 ### INIT
 ## Required for bootc images
 CMD ["/sbin/init"]
