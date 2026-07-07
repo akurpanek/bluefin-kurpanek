@@ -62,6 +62,13 @@ ARG BASE_IMAGE_NAME="silverblue"
 ARG FEDORA_MAJOR_VERSION="44"
 ARG VERSION=""
 
+### /opt
+## Makes /opt writeable by default. Needs to be here to make the main image
+## build strict (no /opt there). This is for downstream images/stuff like k0s.
+## If you need /opt as an immutable real directory for build-time packages
+## (e.g. google-chrome, docker-desktop), replace the next line with:
+RUN rm -rf /opt && mkdir /opt
+
 ### MODIFICATIONS
 ## Make modifications desired in your image and install packages by modifying the build scripts.
 ## The following RUN directives mount the ctx stage which includes:
@@ -71,21 +78,18 @@ ARG VERSION=""
 ##   - Files from @ublue-os/brew at /oci/brew
 ## Scripts are run in numerical order (10-build.sh, 20-example.sh, etc.)
 
-RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    --mount=type=tmpfs,dst=/boot \
-    --mount=type=tmpfs,dst=/tmp \
-    /ctx/build/00-image-info.sh
-
 # Set dnf options before build scripts (persists across subsequent RUN layers)
 RUN dnf5 config-manager setopt keepcache=1 install_weak_deps=0
 
+# Execute the central build runner script
+# This automatically runs all discovered [0-9]*-*.sh scripts in numerical order
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=cache,dst=/var/cache/rpm-ostree \
     --mount=type=secret,id=GITHUB_TOKEN \
     --mount=type=tmpfs,dst=/boot \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/build/10-build.sh
+    /ctx/build/runner.sh
 
 ### CLEANUP
 ## Use Bluefin's clean-stage.sh to remove build artifacts before linting.
@@ -97,13 +101,29 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/boot \
     /ctx/build/clean-stage.sh
 
-### /opt
-## Makes /opt writeable by default. Needs to be here to make the main image
-## build strict (no /opt there). This is for downstream images/stuff like k0s.
-## If you need /opt as an immutable real directory for build-time packages
-## (e.g. google-chrome, docker-desktop), replace the next line with:
-##   RUN rm /opt && mkdir /opt
-RUN rm -rf /opt && ln -s /var/opt /opt
+### /opt symlink restoration
+## IMPORTANT: Restores the system state expected by Bluefin/Finpilot.
+## Moves the installed 1Password data to /var/opt and recreates
+## /opt as a symlink for the final, running image.
+RUN cp -a /opt/. /var/opt/ && rm -rf /opt && ln -s /var/opt /opt
+
+### Fix bootc linting issues for 1Password groups (sysusers)
+## Extracts newly created groups and registers them properly for systemd-sysusers
+RUN if grep -E '^onepassword' /etc/group > /dev/null; then \
+        echo "g onepassword - -" > /usr/lib/sysusers.d/onepassword.conf && \
+        echo "g onepassword-mcp - -" >> /usr/lib/sysusers.d/onepassword.conf; \
+    fi
+
+### Fix bootc linting issues for /var content (tmpfiles.d)
+## bootc images cannot contain static files in /var. We move /var/opt to
+## /usr/lib/opt and use systemd-tmpfiles to create the symlink at runtime.
+RUN if [ -d /var/opt ]; then \
+        mkdir -p /usr/lib/opt && \
+        cp -a /var/opt/. /usr/lib/opt/ && \
+        rm -rf /var/opt && \
+        mkdir -p /usr/lib/tmpfiles.d && \
+        echo "L+ /var/opt - - - - /usr/lib/opt" > /usr/lib/tmpfiles.d/custom-opt.conf; \
+    fi
 
 ### INIT
 ## Required for bootc images
